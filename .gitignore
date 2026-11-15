@@ -147,3 +147,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# このリポジトリでは公開しないもの
+spec.md
+.claude/

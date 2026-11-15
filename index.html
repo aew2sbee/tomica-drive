@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="トミカドライブ">
+<meta name="theme-color" content="#8fd16a">
+<meta name="format-detection" content="telephone=no">
+<title>トミカ ドライブ</title>
+<style>
+  :root {
+    --blue: #3d8bfd;
+    --blue-lit: #a9d0ff;
+    --blue-idle: #8db6ee;
+    --orange: #ff8a1f;
+    --orange-lit: #ffd29e;
+    --orange-idle: #f2b680;
+  }
+  * { box-sizing: border-box; }
+  /* スクロール・ズーム・長押しメニュー・文字選択をすべて止める */
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden;
+    background: #8fd16a;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    position: fixed; inset: 0;
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", sans-serif;
+    color: #333;
+  }
+  [hidden] { display: none !important; }
+  #world { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: absolute; inset: 0; pointer-events: none; }
+  .scene { position: absolute; inset: 0; }
+  .tap { pointer-events: auto; cursor: pointer; }
+
+  /* ---------- タイトル ---------- */
+  .start-btn {
+    position: absolute; left: 50%; top: 84%;
+    width: 260px; height: 260px; margin: -130px 0 0 -130px;
+    border-radius: 50%;
+    background: #2fbf71; color: #fff;
+    box-shadow: 0 14px 0 #1f8a50, 0 22px 34px rgba(0,0,0,.25);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font-size: 40px; font-weight: 900; letter-spacing: .05em;
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+  .start-btn svg { width: 120px; height: 120px; margin-left: 14px; }
+  .start-btn.down { animation: none; transform: scale(.9); }
+
+  /* ---------- 走行：上の大きな矢印 ---------- */
+  .turn-prompt {
+    position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%;
+    width: 270px; height: 210px; margin-left: -135px;
+    border-radius: 40px; color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 42px; font-weight: 900;
+    box-shadow: 0 10px 0 rgba(0,0,0,.2);
+    animation: popIn .4s cubic-bezier(.3,1.7,.5,1) both;
+  }
+  .turn-prompt.right { background: var(--orange); }
+  .turn-prompt.left { background: var(--blue); }
+  .turn-prompt svg { width: 130px; height: 140px; animation: nudgeR .8s ease-in-out infinite; }
+  .turn-prompt.left svg { animation-name: nudgeL; }
+  .turn-prompt.ok { animation: okPop .5s ease both; }
+  .turn-prompt .label { line-height: 1; margin-top: -4px; }
+
+  /* ---------- 走行：左右の矢印ボタン ---------- */
+  .arrow-btn { position: absolute; top: 50%; width: 150px; height: 230px; margin-top: -115px; }
+  .arrow-btn.left { left: calc(14px + env(safe-area-inset-left, 0px)); }
+  .arrow-btn.right { right: calc(14px + env(safe-area-inset-right, 0px)); }
+  .arrow-btn .face {
+    width: 100%; height: 100%; border-radius: 36px; color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font-size: 30px; font-weight: 900;
+    box-shadow: 0 10px 0 rgba(0,0,0,.2);
+  }
+  /* ふだんは淡い色。出番のときだけ濃い色で光る */
+  .arrow-btn.left .face { background: var(--blue-idle); --base: var(--blue); --lit: var(--blue-lit); }
+  .arrow-btn.right .face { background: var(--orange-idle); --base: var(--orange); --lit: var(--orange-lit); }
+  .arrow-btn .face.glow, .arrow-btn .face.strong { background: var(--base); }
+  .arrow-btn svg { width: 104px; height: 120px; }
+  .arrow-btn.left svg { transform: scaleX(-1); }
+  .arrow-btn .face.glow { animation: glow 1s ease-in-out infinite; }
+  .arrow-btn .face.strong { animation: glow .5s ease-in-out infinite; }
+  .arrow-btn .face.on { animation: blinkOn .8s steps(1) infinite; }
+  .arrow-btn.nope { animation: nope .55s ease; }
+  .arrow-btn.bounce { animation: bounce .25s ease; }
+
+  /* ---------- 到着 ---------- */
+  .arrive-text {
+    position: absolute; top: calc(40px + env(safe-area-inset-top, 0px)); left: 50%;
+    padding: 22px 48px; border-radius: 40px;
+    background: #fff; color: #ff6b6b;
+    font-size: 64px; font-weight: 900; white-space: nowrap;
+    box-shadow: 0 10px 0 rgba(0,0,0,.15);
+    animation: popInCenter .5s cubic-bezier(.3,1.7,.5,1) both;
+  }
+
+  /* ---------- 横向きのとき ---------- */
+  #rotate {
+    position: absolute; inset: 0; pointer-events: auto;
+    background: rgba(40,60,90,.94); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+    font-size: 48px; font-weight: 900;
+  }
+  #rotate svg { width: 180px; height: 180px; animation: rot 2s ease-in-out infinite; }
+
+  /* ---------- デバッグ表示（?debug） ---------- */
+  #debugPanel {
+    position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); right: 8px; width: 232px;
+    padding: 8px; border-radius: 12px; pointer-events: auto;
+    background: rgba(0,0,0,.62); color: #fff;
+    font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  }
+  #debugPanel pre { margin: 0 0 6px; white-space: pre-wrap; font: inherit; }
+  .dbg-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .dbg-row span { flex: 1; }
+  .dbg-row b {
+    width: 46px; height: 36px; border-radius: 8px; background: rgba(255,255,255,.22);
+    display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer;
+  }
+  .dbg-row b.wide { flex: 1; width: auto; font-size: 13px; }
+
+  @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  @keyframes popIn { 0% { transform: scale(.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes popInCenter { 0% { transform: translateX(-50%) scale(.3); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+  @keyframes okPop { 0% { transform: scale(1); } 40% { transform: scale(1.15); } 100% { transform: scale(.8); opacity: .85; } }
+  @keyframes nudgeR { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(12px); } }
+  @keyframes nudgeL { 0%, 100% { transform: scaleX(-1) translateX(-8px); } 50% { transform: scaleX(-1) translateX(12px); } }
+  @keyframes glow {
+    0%, 100% { transform: rotate(-5deg) scale(1); box-shadow: 0 10px 0 rgba(0,0,0,.2), 0 0 0 0 rgba(255,255,255,.95); }
+    50% { transform: rotate(5deg) scale(1.08); box-shadow: 0 10px 0 rgba(0,0,0,.2), 0 0 0 22px rgba(255,255,255,0); }
+  }
+  @keyframes blinkOn { 0% { background: var(--lit); } 50% { background: var(--base); } }
+  @keyframes nope {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    15% { transform: translateX(-16px) rotate(-8deg); }
+    35% { transform: translateX(14px) rotate(7deg); }
+    55% { transform: translateX(-10px) rotate(-5deg); }
+    75% { transform: translateX(6px) rotate(3deg); }
+  }
+  @keyframes bounce { 0%, 100% { transform: scale(1); } 40% { transform: scale(.9); } }
+  @keyframes rot { 0%, 20% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0); } }
+</style>
+</head>
+<body>
+<canvas id="world"></canvas>
+
+<div id="ui">
+  <!-- 曲がる矢印の形（右向き。左はCSSで反転して使う） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="icoTurn" viewBox="0 0 120 140">
+        <path d="M38 132 V80 Q38 46 72 46 H78" fill="none" stroke="currentColor" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M72 12 L114 46 L72 80 Z" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <section class="scene" data-scene="title" hidden>
+    <div class="tap start-btn" id="btnStart" role="button" aria-label="スタート">
+      <svg viewBox="0 0 100 100"><path d="M34 22 Q28 19 28 26 V74 Q28 81 34 78 L78 54 Q83 50 78 46 Z" fill="currentColor"/></svg>
+      <span>すたーと</span>
+    </div>
+  </section>
+
+  <section class="scene" data-scene="drive" hidden>
+    <div class="turn-prompt" id="turnPrompt" hidden>
+      <svg viewBox="0 0 120 140"><use href="#icoTurn"/></svg>
+      <div class="label" id="turnLabel">みぎ</div>
+    </div>
+    <div class="tap arrow-btn left" id="btnLeft" role="button" aria-label="ひだり">
+      <div class="face"><svg viewBox="0 0 120 140"><use href="#icoTurn"/></svg><span>ひだり</span></div>
+    </div>
+    <div class="tap arrow-btn right" id="btnRight" role="button" aria-label="みぎ">
+      <div class="face"><svg viewBox="0 0 120 140"><use href="#icoTurn"/></svg><span>みぎ</span></div>
+    </div>
+  </section>
+
+  <section class="scene" data-scene="arrive" hidden>
+    <div class="arrive-text" id="arriveText" hidden>ついたよ！</div>
+  </section>
+
+  <div id="rotate" hidden>
+    <svg viewBox="0 0 200 200"><rect x="60" y="28" width="80" height="144" rx="16" fill="none" stroke="#fff" stroke-width="10"/><circle cx="100" cy="152" r="7" fill="#fff"/></svg>
+    <div>たてに してね</div>
+  </div>
+
+  <div id="debugPanel" hidden>
+    <pre id="debugText"></pre>
+    <div class="dbg-row"><span>しゃせん</span><b data-dbg="lane-">−</b><b data-dbg="lane+">＋</b></div>
+    <div class="dbg-row"><span>ガイド</span><b data-dbg="guide-">−</b><b data-dbg="guide+">＋</b></div>
+    <div class="dbg-row"><span>はやさ</span><b data-dbg="speed-">−</b><b data-dbg="speed+">＋</b></div>
+    <div class="dbg-row"><span>まがる</span><b data-dbg="turns-">−</b><b data-dbg="turns+">＋</b></div>
+    <div class="dbg-row"><span>じかん</span><b data-dbg="time-">−</b><b data-dbg="time+">＋</b></div>
+    <div class="dbg-row"><b class="wide" data-dbg="new">あたらしいコース</b><b class="wide" data-dbg="reset">しょきち</b></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// 1. 定数
+// ============================================================
+const APP_VERSION = '0.1.0';
+const PARAMS = new URLSearchParams(location.search);
+const DEBUG = PARAMS.has('debug');          // ?debug：タッチ無視エリアの枠・FPS・状態を表示
+const AUTOSTART = PARAMS.has('autostart');  // ?autostart：タイトルを飛ばして走り出す（PCでの確認用）
+// 公開先のパス（本番は /tomica-drive/、PR プレビューは /tomica-drive/pr-preview/pr-<番号>/）
+const BASE_PATH = new URL('./', location.href).pathname;
+
+const CONFIG = {
+  pxPerCm: 52,                       // iPad / iPad Air / iPad Pro では CSS 1cm ≒ 52px
+  tomicaCm: { len: 7.5, wid: 3.0 },  // トミカの大きさの目安
+  zoneMarginPx: 60,                  // タッチ無視エリア：トミカガイドの外側にとる余白
+
+  // 世界座標の寸法（車線の幅を 100 とする）
+  lane: 100,
+  roadHalf: 110,                     // 道路の半分の幅（1車線 + 路肩）
+  sidewalk: 30,                      // 歩道の幅
+  stopLineGap: 72,                   // 交差点の端から停止線までの距離
+
+  // 走り方
+  accel: 110,                        // 加速の強さ（単位/秒²）
+  jerk: 160,                         // 加速の立ち上がりの速さ（小さいほど、ゆっくり動き出す）
+  decel: 120,                        // ブレーキの強さ
+  stopTau: 0.45,                     // 止まる直前のゆるめ方（秒）
+  turnSec: 1.2,                      // 交差点を曲がるのにかかる時間
+  promptSec: 3,                      // 交差点の何秒前に矢印を出すか
+  remindSec: 2.2,                    // 停止線で待っているとき、声をかけるまでの秒数
+  autoTurnSec: 5,                    // 停止線で待って、自動で曲がるまでの秒数
+  winkerSec: 0.4,                    // ウインカーの点灯・消灯の長さ
+  arriveDist: 650,                   // ゴールのどれくらい手前から「到着」にするか
+};
+const RH = CONFIG.roadHalf;
+const SW = CONFIG.sidewalk;
+const HALF_LANE = CONFIG.lane / 2;
+
+const COLORS = {
+  grass: '#8fd16a',
+  grassDark: '#72bd53',
+  sidewalk: '#eadfc8',
+  sidewalkSeam: '#d4c5a6',
+  road: '#5d6474',
+  line: '#ffffff',
+  right: '#ff8a1f',
+  left: '#3d8bfd',
+};
+// 屋根の色（明るい面, 暗い面）
+const ROOFS = [
+  ['#ff8a80', '#e8615f'], ['#82b1ff', '#5b8def'], ['#ffd180', '#f2a640'],
+  ['#a5d6a7', '#68b96e'], ['#ce93d8', '#a96bbd'], ['#ffab91', '#e3795a'],
+];
+const CAR_COLORS = ['#ffffff', '#ffd54f', '#4fc3f7', '#f06292', '#81c784', '#ba68c8', '#ff8a65'];
+
+// ============================================================
+// 2. 便利な関数
+// ============================================================
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const el = id => document.getElementById(id);
+
+// 向き h（0 = 北 = 画面の上。時計回りがプラス）の前方向と右方向
+const fwdX = h => Math.sin(h);
+const fwdY = h => -Math.cos(h);
+const rightX = h => Math.cos(h);
+const rightY = h => Math.sin(h);
+
+// 点から線分までの距離
+function distToSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? clamp(((px - ax) * dx + (py - ay) * dy) / len2, 0, 1) : 0;
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+const cross = (ax, ay, bx, by, px, py) => (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+// 道路片どうしの最短距離（交わっていれば 0）
+function roadGap(a, b) {
+  const d1 = cross(b.ax, b.ay, b.bx, b.by, a.ax, a.ay), d2 = cross(b.ax, b.ay, b.bx, b.by, a.bx, a.by);
+  const d3 = cross(a.ax, a.ay, a.bx, a.by, b.ax, b.ay), d4 = cross(a.ax, a.ay, a.bx, a.by, b.bx, b.by);
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  return Math.min(
+    distToSeg(a.ax, a.ay, b.ax, b.ay, b.bx, b.by), distToSeg(a.bx, a.by, b.ax, b.ay, b.bx, b.by),
+    distToSeg(b.ax, b.ay, a.ax, a.ay, a.bx, a.by), distToSeg(b.bx, b.by, a.ax, a.ay, a.bx, a.by));
+}
+
+// 整数の座標から 0〜1 の決まった値を作る（草花を毎回同じ場所に置くため）
+function hash2(i, j) {
+  let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+// 角の丸い四角をパスに足す（beginPath は呼び出し側で）
+function rrect(g, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+// 回転した四角をパスに足す
+function rotRect(g, x, y, w, d, h) {
+  const c = Math.cos(h), s = Math.sin(h);
+  [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].forEach(([lx, ly], i) => {
+    const px = x + lx * c - ly * s, py = y + lx * s + ly * c;
+    if (i) g.lineTo(px, py); else g.moveTo(px, py);
+  });
+  g.closePath();
+}
+
+// CSSアニメーションをもう一度最初から動かす
+function retrigger(node, cls) {
+  node.classList.remove(cls);
+  void node.offsetWidth;
+  node.classList.add(cls);
+}
+
+// ============================================================
+// 3. 設定（localStorage に保存。使えない環境では初期値で動く）
+// ============================================================
+const DEFAULT_SETTINGS = {
+  driveSec: 15,      // 走行時間（秒）
+  turns: 2,          // 曲がる回数
+  volume: 0.8,       // 音量
+  muted: false,      // ミュート
+  guideScale: 1.0,   // トミカガイドの大きさ（1 = 7.5cm × 3cm）
+  laneCm: 4.0,       // 車線の幅（cm）
+  speed: 2.4,        // 走る速さ（1秒に車線何本ぶん進むか）
+};
+const SETTING_RANGES = {
+  driveSec: [10, 30], turns: [0, 3], volume: [0, 1],
+  guideScale: [0.6, 1.5], laneCm: [3, 7], speed: [1, 4],
+};
+const Settings = {
+  // 本番と各 PR プレビューは同じオリジン（github.io）なので、公開先のパスを付けたキーで保存して混ざらないようにする
+  KEY: `tomica-drive:${BASE_PATH}:settings`,
+  values: { ...DEFAULT_SETTINGS },
+  load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.KEY) || '{}');
+      for (const k of Object.keys(DEFAULT_SETTINGS)) {
+        if (typeof saved[k] === typeof DEFAULT_SETTINGS[k]) this.values[k] = saved[k];
+      }
+    } catch (e) { /* 読めなければ初期値のまま */ }
+    this.clampAll();
+  },
+  save() {
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.values)); } catch (e) { /* 保存できなくても動かす */ }
+  },
+  set(key, value) {
+    this.values[key] = value;
+    this.clampAll();
+    this.save();
+  },
+  reset() {
+    this.values = { ...DEFAULT_SETTINGS };
+    this.save();
+  },
+  clampAll() {
+    for (const [k, [lo, hi]] of Object.entries(SETTING_RANGES)) this.values[k] = clamp(this.values[k], lo, hi);
+  },
+};
+
+// ============================================================
+// 4. 画面の大きさ・トミカガイド・タッチ無視エリア
+// ============================================================
+const canvas = el('world');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+const Layout = {
+  w: 0, h: 0, dpr: 1, cx: 0, cy: 0,
+  guideW: 0, guideL: 0,        // トミカガイドの幅と長さ（px）
+  lanePx: 0, scale: 1,         // 車線の幅（px）と、世界の1単位が何pxか
+  zone: { x: 0, y: 0, w: 0, h: 0 },
+  landscape: false,
+  update() {
+    this.w = window.innerWidth;
+    this.h = window.innerHeight;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.cx = this.w / 2;
+    this.cy = this.h / 2;
+    const s = Settings.values;
+    this.guideL = CONFIG.tomicaCm.len * CONFIG.pxPerCm * s.guideScale;
+    this.guideW = CONFIG.tomicaCm.wid * CONFIG.pxPerCm * s.guideScale;
+    this.lanePx = s.laneCm * CONFIG.pxPerCm;
+    this.scale = this.lanePx / CONFIG.lane;
+    const m = CONFIG.zoneMarginPx;
+    this.zone = {
+      x: this.cx - this.guideW / 2 - m, y: this.cy - this.guideL / 2 - m,
+      w: this.guideW + m * 2, h: this.guideL + m * 2,
+    };
+    this.landscape = this.w > this.h;
+    const cw = Math.round(this.w * this.dpr), ch = Math.round(this.h * this.dpr);
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+  },
+  inZone(x, y) {
+    const z = this.zone;
+    return x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h;
+  },
+  // 画面に映る範囲の半径（世界座標）
+  viewRadius() { return Math.hypot(this.w, this.h) / 2 / this.scale + 30; },
+  // トミカの長さの半分（世界座標）
+  carHalfLen() { return this.guideL / 2 / this.scale; },
+};
+
+// ============================================================
+// 5. 入力の関所
+//    中央のトミカ設置エリアで触れ始めた指は、離すまでずっと無視する
+// ============================================================
+const Input = {
+  ignored: new Set(),
+  init() {
+    const cap = { capture: true, passive: false };
+    window.addEventListener('pointerdown', e => {
+      if (App.scene && App.scene.zone && Layout.inZone(e.clientX, e.clientY)) {
+        this.ignored.add(e.pointerId);
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        Debug.zoneHit();
+      }
+    }, cap);
+    for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
+      window.addEventListener(type, e => {
+        if (!this.ignored.has(e.pointerId)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (type !== 'pointermove') this.ignored.delete(e.pointerId);
+      }, cap);
+    }
+    // ブラウザ標準の動き（スクロール・ズーム・長押しメニュー・選択）を止める
+    const allowed = e => e.target instanceof Element && e.target.closest('.allow-touch');
+    const block = e => { if (!allowed(e)) e.preventDefault(); };
+    for (const type of ['touchstart', 'touchmove', 'touchend']) document.addEventListener(type, block, { passive: false });
+    for (const type of ['gesturestart', 'gesturechange', 'contextmenu', 'dblclick', 'selectstart']) {
+      document.addEventListener(type, e => e.preventDefault(), { passive: false });
+    }
+    // iOS では指を離したとき（pointerup / touchend）でないと音を有効にできない
+    const unlock = () => Sound.unlock();
+    window.addEventListener('pointerup', unlock, true);
+    window.addEventListener('touchend', () => { unlock(); Voice.prime(); }, true);
+    window.addEventListener('keydown', unlock, true);
+  },
+  // ボタンは押した瞬間（pointerdown）に反応させる
+  onTap(node, fn) {
+    node.addEventListener('pointerdown', e => { e.preventDefault(); fn(e); });
+  },
+};
+
+// ============================================================
+// 6. 効果音（Web Audio API で合成）
+// ============================================================
+const Sound = (() => {
+  let ac = null, master = null, sfx = null, sirenBus = null, engineBus = null, noiseBuf = null;
+  let siren = null, engine = null;
+
+  function unlock() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!ac) {
+      ac = new AC();
+      master = ac.createGain(); master.connect(ac.destination);
+      sfx = ac.createGain(); sfx.connect(master);
+      sirenBus = ac.createGain(); sirenBus.connect(master);
+      engineBus = ac.createGain(); engineBus.connect(master);
+      noiseBuf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      applyVolume();
+    }
+    if (ac.state === 'running') return;
+    ac.resume();
+    // iOS 対策：ユーザー操作の中で無音を1回鳴らす
+    const src = ac.createBufferSource();
+    src.buffer = ac.createBuffer(1, 1, 22050);
+    src.connect(master);
+    src.start(0);
+  }
+  function applyVolume() {
+    if (master) master.gain.value = Settings.values.muted ? 0 : Settings.values.volume;
+  }
+
+  // 短い音
+  function tone({ type = 'sine', freq, to = 0, dur = 0.15, vol = 0.25, at = 0 }) {
+    if (!ac) return;
+    const t = ac.currentTime + at;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfx);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  // 短い雑音（カチッという音などに使う）
+  function noise({ dur = 0.05, vol = 0.3, freq = 2000, q = 1, at = 0 }) {
+    if (!ac) return;
+    const t = ac.currentTime + at;
+    const src = ac.createBufferSource(); src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(sfx);
+    src.start(t, Math.random() * 0.3); src.stop(t + dur + 0.02);
+  }
+
+  // サイレン（段階1は消防車の「ウ〜」を仮に鳴らす）
+  function sirenStart() {
+    if (!ac || siren) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = 740;
+    const lfo = ac.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 0.32;
+    const depth = ac.createGain(); depth.gain.value = 200;
+    lfo.connect(depth); depth.connect(o.frequency);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.8);
+    o.connect(lp); lp.connect(g); g.connect(sirenBus);
+    o.start(t); lfo.start(t);
+    siren = { o, lfo, g };
+  }
+  function sirenStop() {
+    if (!siren) return;
+    const t = ac.currentTime, s = siren;
+    siren = null;
+    s.g.gain.cancelScheduledValues(t);
+    s.g.gain.setTargetAtTime(0, t, 0.25);
+    s.o.stop(t + 1.5); s.lfo.stop(t + 1.5);
+  }
+
+  // エンジンの音（速さに合わせて音の高さが変わる）
+  let lastEngineR = -1;
+  function engineStart() {
+    if (!ac || engine) return;
+    const t = ac.currentTime;
+    const o1 = ac.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 42;
+    const o2 = ac.createOscillator(); o2.type = 'square'; o2.frequency.value = 63;
+    const g2 = ac.createGain(); g2.gain.value = 0.35;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 3;
+    const g = ac.createGain(); g.gain.value = 0;
+    o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(engineBus);
+    o1.start(t); o2.start(t);
+    engine = { o1, o2, lp, g };
+    lastEngineR = -1;
+    engineSet(0);
+  }
+  function engineSet(r) {   // r: 0〜1（速さの割合）
+    if (!engine || Math.abs(r - lastEngineR) < 0.02) return;
+    lastEngineR = r;
+    const t = ac.currentTime;
+    engine.o1.frequency.setTargetAtTime(40 + 45 * r, t, 0.12);
+    engine.o2.frequency.setTargetAtTime(60 + 68 * r, t, 0.12);
+    engine.lp.frequency.setTargetAtTime(220 + 380 * r, t, 0.12);
+    engine.g.gain.setTargetAtTime(0.05 + 0.06 * r, t, 0.15);
+  }
+  function engineStop() {
+    if (!engine) return;
+    const t = ac.currentTime, e = engine;
+    engine = null;
+    e.g.gain.cancelScheduledValues(t);
+    e.g.gain.setTargetAtTime(0, t, 0.3);
+    e.o1.stop(t + 1.5); e.o2.stop(t + 1.5);
+  }
+
+  return {
+    unlock, applyVolume,
+    tap() { tone({ freq: 620, to: 940, dur: 0.1, vol: 0.22 }); },
+    good() { tone({ freq: 880, dur: 0.12, vol: 0.2 }); tone({ freq: 1320, dur: 0.2, vol: 0.2, at: 0.09 }); },
+    soft() {
+      tone({ type: 'triangle', freq: 392, to: 330, dur: 0.16, vol: 0.22 });
+      tone({ type: 'triangle', freq: 330, to: 262, dur: 0.2, vol: 0.2, at: 0.13 });
+    },
+    // ウインカーの「カチ」（点灯）「コチ」（消灯）
+    tick(on) {
+      noise({ dur: 0.025, vol: 0.55, freq: on ? 3400 : 2500, q: 5 });
+      tone({ type: 'square', freq: on ? 1900 : 1450, dur: 0.018, vol: 0.05 });
+    },
+    arrive() { [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', freq: f, dur: 0.32, vol: 0.22, at: i * 0.12 })); },
+    sirenStart, sirenStop, engineStart, engineSet, engineStop,
+    // 読み上げ中はサイレンとエンジンを小さくする
+    duck(on) {
+      if (!ac) return;
+      const t = ac.currentTime, v = on ? 0.3 : 1;
+      sirenBus.gain.setTargetAtTime(v, t, 0.1);
+      engineBus.gain.setTargetAtTime(v, t, 0.1);
+    },
+    suspend() { if (ac && ac.state === 'running') ac.suspend(); },
+    resume() { if (ac && ac.state !== 'running') ac.resume(); },
+  };
+})();
+
+// ============================================================
+// 7. 読み上げ（Web Speech API・日本語）
+// ============================================================
+const Voice = (() => {
+  const synth = window.speechSynthesis;
+  let voice = null, timer = 0;
+  function pickVoice() {
+    if (!synth) return;
+    const ja = synth.getVoices().filter(v => /^ja[-_]?JP/i.test(v.lang));
+    voice = ja.find(v => /kyoko|o-ren|otoya|hattori|enhanced|premium/i.test(v.name)) || ja[0] || null;
+  }
+  if (synth) {
+    pickVoice();
+    if (synth.addEventListener) synth.addEventListener('voiceschanged', pickVoice);
+  }
+  function say(text, { rate = 1.0, pitch = 1.15 } = {}) {
+    if (!synth || Settings.values.muted || Settings.values.volume <= 0) return;
+    clearTimeout(timer);
+    const busy = synth.speaking || synth.pending;
+    if (busy) synth.cancel();
+    const speak = () => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP';
+      if (voice) u.voice = voice;
+      u.rate = rate;
+      u.pitch = pitch;
+      u.volume = Settings.values.volume;
+      u.onstart = () => Sound.duck(true);
+      u.onend = u.onerror = () => Sound.duck(false);
+      synth.speak(u);
+    };
+    // Safari は cancel() の直後に speak() すると無視されることがあるので少し待つ
+    if (busy) timer = setTimeout(speak, 80); else speak();
+  }
+  function stop() {
+    clearTimeout(timer);
+    if (synth) synth.cancel();
+    Sound.duck(false);
+  }
+  // iOS 対策：最初のタッチで読み上げが有効にならなかったときのため、無音のセリフを1回だけ話しておく
+  let primed = false;
+  function prime() {
+    if (primed || !synth) return;
+    primed = true;
+    if (synth.speaking || synth.pending) return;   // もう話している＝有効になっている
+    const u = new SpeechSynthesisUtterance(' ');
+    u.lang = 'ja-JP';
+    u.volume = 0;
+    synth.speak(u);
+  }
+  return { say, stop, prime };
+})();
+
+// ============================================================
+// 8. コース（道のデータ）
+//    車の通る道すじを「走った距離 s → 位置と向き」で表す
+// ============================================================
+class Path {
+  constructor() { this.segs = []; this.length = 0; }
+  addLine(x, y, h, len) {
+    this.segs.push({ type: 'line', s0: this.length, len, x, y, h });
+    this.length += len;
+  }
+  // 90°の円弧。dir = 1 で右、-1 で左に曲がる
+  addArc(x, y, h, dir, r) {
+    const len = r * Math.PI / 2;
+    this.segs.push({ type: 'arc', s0: this.length, len, r, h0: h, dir, cx: x + dir * r * rightX(h), cy: y + dir * r * rightY(h) });
+    this.length += len;
+  }
+  segAt(s) {
+    for (const g of this.segs) if (s < g.s0 + g.len) return g;
+    return this.segs[this.segs.length - 1];
+  }
+  at(s, out = {}) {
+    s = clamp(s, 0, this.length);
+    const g = this.segAt(s), t = s - g.s0;
+    if (g.type === 'line') {
+      out.x = g.x + fwdX(g.h) * t;
+      out.y = g.y + fwdY(g.h) * t;
+      out.h = g.h;
+    } else {
+      const h = g.h0 + g.dir * t / g.r;
+      out.x = g.cx - g.dir * g.r * rightX(h);
+      out.y = g.cy - g.dir * g.r * rightY(h);
+      out.h = h;
+    }
+    return out;
+  }
+}
+
+// 道路片（描画と重なりチェックに使う、道路の中心線）
+function makeRoad(ax, ay, h, len, aCross, bCross, extra = {}) {
+  return { ax, ay, bx: ax + fwdX(h) * len, by: ay + fwdY(h) * len, h, len, aCross, bCross, ...extra };
+}
+
+// 曲がる向き dirs と直線の長さ lens からコースを組み立てる
+//   lens[i]：ひとつ前の交差点（または出発点）の中心から、次の交差点の中心までの長さ
+//   lens[最後]：最後の交差点の中心から、ゴール（停車する位置）までの長さ
+function buildCourse(dirs, lens, cruise) {
+  const path = new Path(), nodes = [], roads = [];
+  const stub = Math.max(900, Layout.viewRadius() * 1.6);   // 曲がらなかった枝道の長さ
+  let h = 0, cx = 0, cy = 0;                                 // 道路の中心線をたどる位置と向き
+  roads.push(makeRoad(cx, cy, h + Math.PI, stub, false, false));   // 出発点の後ろにも道を伸ばす
+  let px = cx - HALF_LANE * rightX(h), py = cy - HALF_LANE * rightY(h);   // 車の位置（左車線）
+
+  for (let i = 0; i < dirs.length; i++) {
+    const dir = dirs[i];
+    const nx = cx + fwdX(h) * lens[i], ny = cy + fwdY(h) * lens[i];   // 交差点の中心
+    // 交差点の手前の端（左車線の上）から円弧で曲がる
+    const sx = nx - fwdX(h) * RH - HALF_LANE * rightX(h);
+    const sy = ny - fwdY(h) * RH - HALF_LANE * rightY(h);
+    path.addLine(px, py, h, Math.hypot(sx - px, sy - py));
+    const sArcStart = path.length;
+    const r = dir > 0 ? RH + HALF_LANE : RH - HALF_LANE;   // 右折は大回り、左折は小回り（左側通行）
+    path.addArc(sx, sy, h, dir, r);
+    roads.push(makeRoad(cx, cy, h, lens[i], i > 0, true));
+    roads.push(makeRoad(nx, ny, h, stub, true, false));                       // まっすぐ先の道
+    roads.push(makeRoad(nx, ny, h - dir * Math.PI / 2, stub, true, false));   // 曲がらなかった側の道
+    nodes.push({
+      x: nx, y: ny, hIn: h, dir, sArcStart, sArcEnd: path.length,
+      vTurn: Math.min(cruise, (r * Math.PI / 2) / CONFIG.turnSec),
+      armed: false, prompted: false, waitT: 0, reminded: false,
+    });
+    h += dir * Math.PI / 2;
+    cx = nx; cy = ny;
+    const e = path.at(path.length);
+    px = e.x; py = e.y;
+  }
+
+  // 最後の直線：ゴールで止まる
+  const last = lens[dirs.length];
+  const gx = cx + fwdX(h) * last - HALF_LANE * rightX(h);
+  const gy = cy + fwdY(h) * last - HALF_LANE * rightY(h);
+  path.addLine(px, py, h, Math.hypot(gx - px, gy - py));
+  const front = Layout.carHalfLen();
+  const endRoad = makeRoad(cx, cy, h, last + front + 60, dirs.length > 0, false, { end: true });
+  roads.push(endRoad);
+  // ゴールの先の家（段階2で、車ごとの「現場」に置きかえる）
+  const dest = { x: endRoad.bx + fwdX(h) * 95, y: endRoad.by + fwdY(h) * 95, h, w: 230, d: 170 };
+  roads.push(makeRoad(endRoad.bx, endRoad.by, h, 260, false, false, { ghost: true }));   // 家の場所（他の道と重ならないように）
+  return { path, nodes, roads, cruise, goal: { x: gx, y: gy, h, front }, dest };
+}
+
+// 道どうしが近づきすぎていないか
+function roadsTooClose(roads) {
+  const gap = 2 * (RH + SW) + 200;
+  const same = (x1, y1, x2, y2) => Math.abs(x1 - x2) < 1 && Math.abs(y1 - y2) < 1;
+  for (let i = 0; i < roads.length; i++) {
+    for (let j = i + 1; j < roads.length; j++) {
+      const a = roads[i], b = roads[j];
+      const touching = same(a.ax, a.ay, b.ax, b.ay) || same(a.ax, a.ay, b.bx, b.by) ||
+                       same(a.bx, a.by, b.ax, b.ay) || same(a.bx, a.by, b.bx, b.by);
+      if (!touching && roadGap(a, b) < gap) return true;
+    }
+  }
+  return false;
+}
+
+// 交差点を曲がるところが全部うまくいった場合に、ゴールまで何秒かかるか
+function simulateSec(course) {
+  const car = { s: 0, v: 0, a: 0 }, dt = 1 / 30;
+  let t = 0;
+  while (t < 120) {
+    stepCar(car, course, dt, true);
+    t += dt;
+    if (car.v < 0.5 && course.path.length - car.s < 1) break;
+  }
+  return t;
+}
+
+// 走行時間が targetSec になるように直線の長さを決める
+function fitCourse(dirs, cruise, targetSec) {
+  const n = dirs.length;
+  const minLens = Array.from({ length: n + 1 }, (_, i) => {
+    if (n === 0) return cruise * 4;
+    if (i === 0) return cruise * 3.1 + RH;       // 出発 → 最初の交差点（動き出してから矢印が出るまで少し間をあける）
+    if (i < n) return cruise * 3.3 + RH * 2;     // 交差点 → 交差点（前の右左折と、次の矢印が重ならない長さ）
+    return cruise * 2.6 + RH;                    // 最後の交差点 → ゴール
+  });
+  const weights = minLens.map(() => rand(0.7, 1.3));
+  const make = extra => buildCourse(dirs, minLens.map((m, i) => m + extra * weights[i]), cruise);
+  let course = make(0);
+  let sec = simulateSec(course);
+  if (sec < targetSec) {
+    // 二分探索で直線を伸ばす（設定の時間が短すぎるときは、伸ばさずにそのまま＝自動で延長）
+    let lo = 0, hi = cruise * targetSec;
+    for (let k = 0; k < 12; k++) {
+      const mid = (lo + hi) / 2;
+      if (simulateSec(make(mid)) < targetSec) lo = mid; else hi = mid;
+    }
+    course = make((lo + hi) / 2);
+    sec = simulateSec(course);
+  }
+  course.estSec = sec;
+  return course;
+}
+
+function generateCourse() {
+  const { turns, driveSec, speed } = Settings.values;
+  const cruise = speed * CONFIG.lane;
+  let course = null;
+  for (let tries = 0; tries < 30 && !course; tries++) {
+    const dirs = Array.from({ length: turns }, () => (Math.random() < 0.5 ? -1 : 1));
+    const c = fitCourse(dirs, cruise, driveSec);
+    if (!roadsTooClose(c.roads)) course = c;
+  }
+  // 見つからなかったときは、左右交互（道が重ならない形）にする
+  if (!course) course = fitCourse(Array.from({ length: turns }, (_, i) => (i % 2 ? 1 : -1)), cruise, driveSec);
+  course.objects = placeScenery(course);
+  return course;
+}
+
+// 道ばたに家と木を置く
+function placeScenery(course) {
+  const objs = [];
+  const roads = course.roads;
+  const free = (x, y, r, house) => {
+    const need = house ? RH + SW + r + 10 : RH + SW + r * 0.5;   // 木は少し歩道にはみ出してよい
+    for (const rd of roads) if (distToSeg(x, y, rd.ax, rd.ay, rd.bx, rd.by) < need) return false;
+    for (const o of objs) if (Math.hypot(o.x - x, o.y - y) < o.r + r + 8) return false;
+    return true;
+  };
+  for (const rd of roads) {
+    if (rd.ghost) continue;
+    for (const side of [-1, 1]) {
+      for (const row of [0, 1]) {
+        let t = rand(0, 80);
+        while (t < rd.len) {
+          const house = Math.random() < (row === 0 ? 0.5 : 0.35);
+          const r = house ? rand(80, 110) : rand(30, 48);
+          const off = RH + SW + (house ? 18 : 6) + r + row * 230;
+          const x = rd.ax + fwdX(rd.h) * t + rightX(rd.h) * side * off;
+          const y = rd.ay + fwdY(rd.h) * t + rightY(rd.h) * side * off;
+          if (free(x, y, r, house)) {
+            objs.push(house
+              // 家は屋根の棟が道に平行になる向きに置く
+              ? { kind: 'house', x, y, r, w: r * 1.5, d: r * 1.2, h: rd.h - Math.PI / 2 + (side > 0 ? Math.PI : 0), roof: randInt(0, ROOFS.length - 1) }
+              : { kind: 'tree', x, y, r, pink: Math.random() < 0.2 });
+          }
+          t += r * 2 + rand(20, 120);
+        }
+      }
+    }
+  }
+  return objs;
+}
+
+// ============================================================
+// 9. 走り方（速度の決め方）
+//    「次に止まる・曲がる地点までの距離」から、出してよい速さを決める
+// ============================================================
+function stopCurve(d) {
+  if (d <= 0) return 0;
+  // 遠いうちは一定の強さでブレーキ、止まる直前はふんわり
+  return Math.min(Math.sqrt(2 * CONFIG.decel * d), d / CONFIG.stopTau + 10);
+}
+// 停止線で止まるときの s（トミカの前が停止線の手前に来る位置）
+function stopS(X) {
+  return X.sArcStart - (CONFIG.stopLineGap + 10) - Layout.carHalfLen();
+}
+function speedLimit(course, s, assumeArmed) {
+  let lim = course.cruise;
+  for (const X of course.nodes) {
+    if (s > X.sArcEnd) continue;
+    if (!assumeArmed && !X.armed) {
+      lim = Math.min(lim, stopCurve(stopS(X) - s));                    // まだボタンが押されていない：停止線で止まる
+    } else if (s >= X.sArcStart) {
+      lim = Math.min(lim, X.vTurn);                                    // 曲がっている最中
+    } else {
+      lim = Math.min(lim, Math.sqrt(X.vTurn * X.vTurn + 2 * CONFIG.decel * (X.sArcStart - s)));   // 曲がる速さまで落とす
+    }
+  }
+  return Math.min(lim, stopCurve(course.path.length - s));
+}
+function stepCar(car, course, dt, assumeArmed = false) {
+  const lim = speedLimit(course, car.s, assumeArmed);
+  const want = clamp((lim - car.v) * 3, -CONFIG.decel * 3, CONFIG.accel);
+  // 加速はじわっと立ち上げる（発進がゆっくりになる）。ブレーキはすぐ効かせる
+  car.a = want > car.a ? Math.min(want, Math.max(car.a, 0) + CONFIG.jerk * dt) : want;
+  car.v = clamp(car.v + car.a * dt, 0, lim);
+  car.s = Math.min(car.s + car.v * dt, course.path.length);
+}
+
+// ============================================================
+// 10. 世界（道路・景色・対向車）
+//     トミカは画面中央・上向きに固定し、世界のほうを動かす
+// ============================================================
+const World = {
+  course: null,
+  car: { s: 0, v: 0, a: 0, x: 0, y: 0, h: 0 },
+  oncoming: [],
+  spawnT: 0,
+  time: 0,
+  setup(course) {
+    this.course = course;
+    Object.assign(this.car, { s: 0, v: 0, a: 0 });
+    course.path.at(0, this.car);
+    this.oncoming = [];
+    this.spawnT = 1.5;
+  },
+  update(dt) {
+    this.time += dt;
+    stepCar(this.car, this.course, dt);
+    this.course.path.at(this.car.s, this.car);
+    this.updateOncoming(dt);
+    Sound.engineSet(this.car.v / this.course.cruise);
+  },
+  isStoppedAtGoal() {
+    return this.car.v < 0.5 && this.course.path.length - this.car.s < 1;
+  },
+  // 対向車：いま走っている直線の、画面の外の先から出てくる
+  updateOncoming(dt) {
+    const car = this.car, R = Layout.viewRadius();
+    for (const o of this.oncoming) {
+      o.x += fwdX(o.h) * o.v * dt;
+      o.y += fwdY(o.h) * o.v * dt;
+    }
+    this.oncoming = this.oncoming.filter(o => Math.hypot(o.x - car.x, o.y - car.y) < R + 500);
+    this.spawnT -= dt;
+    if (this.spawnT > 0) return;
+    this.spawnT = rand(2.2, 4.5);
+    const seg = this.course.path.segAt(car.s);
+    const spawnDist = R + 150;
+    // 交差点やゴールが近いときは出さない（曲がるときにぶつからないように）
+    if (seg.type !== 'line' || seg.s0 + seg.len - car.s < spawnDist + 200) return;
+    const h = seg.h;
+    this.oncoming.push({
+      x: car.x + fwdX(h) * spawnDist + rightX(h) * CONFIG.lane,
+      y: car.y + fwdY(h) * spawnDist + rightY(h) * CONFIG.lane,
+      h: h + Math.PI, v: rand(150, 200), color: pick(CAR_COLORS), len: rand(140, 160), wid: 70,
+    });
+  },
+  draw(g, opts = {}) {
+    const L = Layout, car = this.car, c = this.course;
+    g.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+    g.fillStyle = COLORS.grass;
+    g.fillRect(0, 0, L.w, L.h);
+    g.save();
+    // 画面中央 → 車の向きだけ回す → 車の位置へ
+    g.translate(L.cx, L.cy);
+    g.rotate(-car.h);
+    g.scale(L.scale, L.scale);
+    g.translate(-car.x, -car.y);
+    const R = L.viewRadius();
+    const roads = c.roads.filter(rd => !rd.ghost && distToSeg(car.x, car.y, rd.ax, rd.ay, rd.bx, rd.by) < R + RH + SW);
+    drawGround(g, car, R);
+    drawRoads(g, roads, car, R);
+    for (const X of c.nodes) if (Math.hypot(X.x - car.x, X.y - car.y) < R + 300) drawCrossing(g, X);
+    drawGoal(g, c, car, R);
+    if (opts.guide) drawTurnGuide(g, c.path, opts.guide, this.time);
+    drawObjects(g, c.objects, car, R);
+    drawOncoming(g, this.oncoming);
+    g.restore();
+  },
+};
+
+// ---------- 描画：地面（草と花。座標から決まるので毎回同じ場所に出る） ----------
+function drawGround(g, car, R) {
+  const CELL = 110;
+  const i0 = Math.floor((car.x - R) / CELL), i1 = Math.floor((car.x + R) / CELL);
+  const j0 = Math.floor((car.y - R) / CELL), j1 = Math.floor((car.y + R) / CELL);
+  const flowers = [];
+  g.strokeStyle = COLORS.grassDark;
+  g.lineWidth = 4;
+  g.lineCap = 'round';
+  g.beginPath();
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const r = hash2(i, j);
+      if (r > 0.6) continue;
+      const x = (i + hash2(i + 31, j - 17)) * CELL, y = (j + hash2(i - 13, j + 29)) * CELL;
+      if (r < 0.14) { flowers.push([x, y, Math.floor(r * 100) % 3]); continue; }
+      g.moveTo(x - 9, y + 6); g.lineTo(x - 5, y - 6);
+      g.moveTo(x, y + 7); g.lineTo(x, y - 9);
+      g.moveTo(x + 9, y + 6); g.lineTo(x + 5, y - 6);
+    }
+  }
+  g.stroke();
+  g.lineCap = 'butt';
+  const PETALS = ['#ffffff', '#fff59d', '#f8bbd0'];
+  for (const [x, y, k] of flowers) {
+    g.fillStyle = PETALS[k];
+    g.beginPath();
+    for (let p = 0; p < 5; p++) {
+      const a = p * Math.PI * 2 / 5, fx = x + Math.cos(a) * 7, fy = y + Math.sin(a) * 7;
+      g.moveTo(fx + 6, fy);
+      g.arc(fx, fy, 6, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.fillStyle = '#ffb300';
+    g.beginPath(); g.arc(x, y, 4.5, 0, Math.PI * 2); g.fill();
+  }
+}
+
+// ---------- 描画：道路 ----------
+// 道路片の上で、いま画面に映りそうな範囲 [a, b]（t0〜t1 の中で）
+function visibleRange(rd, car, R, t0 = 0, t1 = rd.len) {
+  const tc = (car.x - rd.ax) * fwdX(rd.h) + (car.y - rd.ay) * fwdY(rd.h);
+  const a = Math.max(t0, tc - R), b = Math.min(t1, tc + R);
+  return a < b ? [a, b] : null;
+}
+// 道路片に沿って、中心線から off だけ横にずれた線をパスに足す
+function roadLine(g, rd, a, b, off) {
+  const ox = rightX(rd.h) * off, oy = rightY(rd.h) * off;
+  g.moveTo(rd.ax + fwdX(rd.h) * a + ox, rd.ay + fwdY(rd.h) * a + oy);
+  g.lineTo(rd.ax + fwdX(rd.h) * b + ox, rd.ay + fwdY(rd.h) * b + oy);
+}
+function drawRoads(g, roads, car, R) {
+  g.lineCap = 'butt';
+  // 歩道
+  g.strokeStyle = COLORS.sidewalk;
+  g.lineWidth = (RH + SW) * 2;
+  g.beginPath();
+  for (const rd of roads) roadLine(g, rd, 0, rd.len, 0);
+  g.stroke();
+  // 歩道の継ぎ目（流れて見えるのでスピード感が出る）。点線の始まりを 40 の倍数にそろえて世界に固定する
+  g.strokeStyle = COLORS.sidewalkSeam;
+  g.lineWidth = SW - 6;
+  g.setLineDash([4, 36]);
+  g.beginPath();
+  for (const rd of roads) {
+    const v = visibleRange(rd, car, R);
+    if (!v) continue;
+    const a = Math.floor(v[0] / 40) * 40;
+    roadLine(g, rd, a, v[1], -(RH + SW / 2));
+    roadLine(g, rd, a, v[1], RH + SW / 2);
+  }
+  g.stroke();
+  g.setLineDash([]);
+  // 車道
+  g.strokeStyle = COLORS.road;
+  g.lineWidth = RH * 2;
+  g.beginPath();
+  for (const rd of roads) roadLine(g, rd, 0, rd.len, 0);
+  g.stroke();
+  // 白線（交差点の中には引かない）
+  const cut = RH + 62;
+  const marks = [];
+  for (const rd of roads) {
+    const v = visibleRange(rd, car, R, rd.aCross ? cut : 0, rd.len - (rd.bCross ? cut : 0));
+    if (v) marks.push([rd, v]);
+  }
+  g.strokeStyle = COLORS.line;
+  g.lineWidth = 6;
+  g.beginPath();
+  for (const [rd, [a, b]] of marks) {
+    roadLine(g, rd, a, b, -(RH - 10));
+    roadLine(g, rd, a, b, RH - 10);
+  }
+  g.stroke();
+  // 中央線（破線。始まりを 100 の倍数にそろえる）
+  g.setLineDash([55, 45]);
+  g.beginPath();
+  for (const [rd, [a, b]] of marks) {
+    const t0 = rd.aCross ? cut : 0;
+    roadLine(g, rd, t0 + Math.floor((a - t0) / 100) * 100, b, 0);
+  }
+  g.stroke();
+  g.setLineDash([]);
+}
+
+// ---------- 描画：交差点（横断歩道・停止線・信号） ----------
+function drawCrossing(g, X) {
+  // 信号機：自分の向きの1つだけ（交差点の向こう側の左の角）
+  g.save();
+  g.translate(X.x, X.y);
+  g.rotate(X.hIn + Math.PI);
+  drawSignal(g);
+  g.restore();
+  for (let k = 0; k < 4; k++) {
+    // 4本の腕それぞれについて、腕の向きを「上（-y）」にして描く
+    g.save();
+    g.translate(X.x, X.y);
+    g.rotate(X.hIn + k * Math.PI / 2);
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    // 横断歩道
+    const bars = 7, bw = 16, span = (RH - 12) * 2, gap = (span - bars * bw) / (bars - 1);
+    for (let i = 0; i < bars; i++) g.fillRect(-(RH - 12) + i * (bw + gap), -(RH + 58), bw, 46);
+    // 停止線：この腕から交差点に入ってくる車線（外向きに見て右側）
+    g.fillRect(4, -(RH + CONFIG.stopLineGap + 5), RH - 14, 10);
+    g.restore();
+  }
+}
+// 腕の向きを上にした座標で、入ってくる車（下向きに進む）から見た向こう側の左の角に描く。横断歩道にかからないよう、その先に置く
+function drawSignal(g) {
+  const y = RH + 82;
+  g.strokeStyle = '#8a8f99';
+  g.lineWidth = 6;
+  g.beginPath(); g.moveTo(RH + 16, y); g.lineTo(RH - 70, y); g.stroke();
+  g.fillStyle = '#6b7280';
+  g.beginPath(); g.arc(RH + 16, y, 9, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#2f3542';
+  g.beginPath(); rrect(g, RH - 104, y - 14, 76, 28, 12); g.fill();
+  // 入ってくる車から見て、左から 青・黄・赤
+  const lamps = [[RH - 82, '#5a2a2a'], [RH - 66, '#5a5228'], [RH - 50, '#1de9b6']];
+  for (const [x, color] of lamps) {
+    g.fillStyle = color;
+    g.beginPath(); g.arc(x + 10, y, 8, 0, Math.PI * 2); g.fill();
+  }
+}
+
+// ---------- 描画：ゴール（チェッカー模様と家） ----------
+function drawGoal(g, c, car, R) {
+  const goal = c.goal, d = c.dest;
+  if (Math.hypot(goal.x - car.x, goal.y - car.y) > R + 500) return;
+  // チェッカー模様（トミカの前のところ）
+  g.save();
+  g.translate(goal.x, goal.y);
+  g.rotate(goal.h);
+  const y0 = -(goal.front + 12), sq = 14;
+  for (let r = 0; r < 2; r++) {
+    for (let k = 0; k < 7; k++) {
+      g.fillStyle = (r + k) % 2 ? '#2b2b2b' : '#ffffff';
+      g.fillRect(-49 + k * sq, y0 - (r + 1) * sq, sq, sq);
+    }
+  }
+  g.restore();
+  // 家（庭つき）
+  g.save();
+  g.translate(d.x, d.y);
+  g.rotate(d.h);
+  g.fillStyle = '#b8e59c';
+  g.beginPath(); rrect(g, -d.w / 2 - 26, -d.d / 2 - 26, d.w + 52, d.d + 52, 30); g.fill();
+  g.fillStyle = 'rgba(0,0,0,0.15)';
+  g.beginPath(); rrect(g, -d.w / 2 + 14, -d.d / 2 + 14, d.w, d.d, 12); g.fill();
+  drawHouse(g, d.w, d.d, 0);
+  // 旗
+  g.strokeStyle = '#8d6e63'; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(d.w * 0.3, -d.d * 0.1); g.lineTo(d.w * 0.3, -d.d * 0.1 - 70); g.stroke();
+  g.fillStyle = '#ffeb3b';
+  g.beginPath(); g.moveTo(d.w * 0.3, -d.d * 0.1 - 70); g.lineTo(d.w * 0.3 + 50, -d.d * 0.1 - 55); g.lineTo(d.w * 0.3, -d.d * 0.1 - 40); g.closePath(); g.fill();
+  g.restore();
+}
+
+// ---------- 描画：曲がる道すじのガイド（矢じるしが流れる） ----------
+function drawTurnGuide(g, path, X, time) {
+  const step = 50, phase = (time * 120) % step, p = {};
+  g.save();
+  g.globalAlpha = X.armed ? 0.95 : 0.55;
+  g.strokeStyle = X.dir > 0 ? COLORS.right : COLORS.left;
+  g.lineWidth = 12;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.beginPath();
+  for (let s = X.sArcStart - 150 + phase; s < X.sArcEnd + 150; s += step) {
+    path.at(s, p);
+    const fx = fwdX(p.h), fy = fwdY(p.h), rx = rightX(p.h), ry = rightY(p.h);
+    g.moveTo(p.x - fx * 8 - rx * 22, p.y - fy * 8 - ry * 22);
+    g.lineTo(p.x + fx * 12, p.y + fy * 12);
+    g.lineTo(p.x - fx * 8 + rx * 22, p.y - fy * 8 + ry * 22);
+  }
+  g.stroke();
+  g.restore();
+}
+
+// ---------- 描画：家・木 ----------
+function drawObjects(g, objs, car, R) {
+  const vis = objs.filter(o => Math.abs(o.x - car.x) < R + o.r && Math.abs(o.y - car.y) < R + o.r);
+  // 影（太陽は世界に固定。右下に落ちる）
+  g.fillStyle = 'rgba(0,0,0,0.15)';
+  g.beginPath();
+  for (const o of vis) {
+    if (o.kind === 'tree') { g.moveTo(o.x + 12 + o.r, o.y + 12); g.arc(o.x + 12, o.y + 12, o.r, 0, Math.PI * 2); }
+    else rotRect(g, o.x + 14, o.y + 14, o.w, o.d, o.h);
+  }
+  g.fill();
+  for (const o of vis) {
+    if (o.kind !== 'house') continue;
+    g.save();
+    g.translate(o.x, o.y);
+    g.rotate(o.h);
+    drawHouse(g, o.w, o.d, o.roof);
+    g.restore();
+  }
+  drawTrees(g, vis.filter(o => o.kind === 'tree'));
+}
+// 家を真上から見た形（切妻屋根を棟で2色に分ける）
+function drawHouse(g, w, d, roofIdx) {
+  const [light, dark] = ROOFS[roofIdx];
+  g.fillStyle = dark;
+  g.beginPath(); rrect(g, -w / 2, -d / 2, w, d, 10); g.fill();
+  g.fillStyle = light;
+  g.beginPath(); rrect(g, -w / 2 + 5, -d / 2 + 5, w - 10, d / 2 - 5, 7); g.fill();
+  // 瓦のすじ
+  g.strokeStyle = 'rgba(0,0,0,0.08)';
+  g.lineWidth = 3;
+  g.beginPath();
+  for (const yy of [-0.33, -0.17, 0.17, 0.33]) { g.moveTo(-w / 2 + 10, d * yy); g.lineTo(w / 2 - 10, d * yy); }
+  g.stroke();
+  // 棟
+  g.strokeStyle = 'rgba(255,255,255,0.65)';
+  g.lineWidth = 5;
+  g.beginPath(); g.moveTo(-w / 2 + 8, 0); g.lineTo(w / 2 - 8, 0); g.stroke();
+  // えんとつ
+  g.fillStyle = '#f3ece0';
+  g.beginPath(); rrect(g, w * 0.18, -d * 0.38, 18, 18, 4); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.12)';
+  g.lineWidth = 3;
+  g.beginPath(); rrect(g, -w / 2, -d / 2, w, d, 10); g.stroke();
+}
+// 木（もこもこした丸）。色ごとにまとめて塗る
+function drawTrees(g, trees) {
+  const fillCircles = (color, list) => {
+    if (!list.length) return;
+    g.fillStyle = color;
+    g.beginPath();
+    for (const [x, y, r] of list) { g.moveTo(x + r, y); g.arc(x, y, r, 0, Math.PI * 2); }
+    g.fill();
+  };
+  for (const pink of [false, true]) {
+    const set = trees.filter(t => t.pink === pink);
+    const [c1, c2, c3] = pink ? ['#ec7aa6', '#f6a5c4', '#fde0ea'] : ['#3f9b45', '#57b75c', '#8ad88d'];
+    fillCircles(c1, set.map(t => [t.x, t.y, t.r]));
+    const bumps = [];
+    for (const t of set) {
+      for (let k = 0; k < 5; k++) {
+        const a = k * Math.PI * 2 / 5 + 0.4;
+        bumps.push([t.x + Math.cos(a) * t.r * 0.45, t.y + Math.sin(a) * t.r * 0.45, t.r * 0.5]);
+      }
+    }
+    fillCircles(c2, bumps);
+    fillCircles(c3, set.map(t => [t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.3]));
+  }
+}
+
+// ---------- 描画：対向車 ----------
+function drawOncoming(g, cars) {
+  for (const o of cars) {
+    g.save();
+    g.translate(o.x + 10, o.y + 10);
+    g.rotate(o.h);
+    g.fillStyle = 'rgba(0,0,0,0.16)';
+    g.beginPath(); rrect(g, -o.wid / 2, -o.len / 2, o.wid, o.len, 20); g.fill();
+    g.restore();
+    g.save();
+    g.translate(o.x, o.y);
+    g.rotate(o.h);
+    drawCarBody(g, o.len, o.wid, o.color);
+    g.restore();
+  }
+}
+// 真上から見た車（前が -y）
+function drawCarBody(g, L, W, color) {
+  g.fillStyle = color;
+  g.beginPath(); rrect(g, -W / 2, -L / 2, W, L, W * 0.3); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.2)';
+  g.lineWidth = 3;
+  g.stroke();
+  g.fillStyle = '#bfe6ff';
+  g.beginPath();
+  rrect(g, -W * 0.36, -L * 0.24, W * 0.72, L * 0.15, 6);
+  rrect(g, -W * 0.33, L * 0.22, W * 0.66, L * 0.1, 5);
+  g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  g.beginPath(); rrect(g, -W * 0.34, -L * 0.07, W * 0.68, L * 0.27, 8); g.fill();
+  g.fillStyle = '#fff59d';
+  g.beginPath();
+  g.moveTo(-W * 0.3 + 5, -L * 0.45); g.arc(-W * 0.3, -L * 0.45, 5, 0, Math.PI * 2);
+  g.moveTo(W * 0.3 + 5, -L * 0.45); g.arc(W * 0.3, -L * 0.45, 5, 0, Math.PI * 2);
+  g.fill();
+}
+
+// ---------- 描画：トミカのまわり（画面座標） ----------
+function drawTomicaLayer(g, { winker = 0, guide = false } = {}) {
+  const L = Layout;
+  g.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+  const x = L.cx - L.guideW / 2, y = L.cy - L.guideL / 2;
+  if (DEBUG) drawPlaceholderTomica(g, x, y, L.guideW, L.guideL);
+  // 点線のガイド
+  if (guide || DEBUG) {
+    g.strokeStyle = 'rgba(255,255,255,0.95)';
+    g.lineWidth = 5;
+    g.setLineDash([14, 10]);
+    g.beginPath(); rrect(g, x, y, L.guideW, L.guideL, L.guideW * 0.22); g.stroke();
+    g.setLineDash([]);
+  }
+  // ウインカー（トミカの横の前と後ろで点滅）
+  if (winker) {
+    const gx = winker > 0 ? L.cx + L.guideW / 2 + 18 : L.cx - L.guideW / 2 - 18;
+    for (const gy of [y + 30, y + L.guideL - 30]) {
+      const grad = g.createRadialGradient(gx, gy, 2, gx, gy, 30);
+      grad.addColorStop(0, 'rgba(255,244,190,1)');
+      grad.addColorStop(0.35, 'rgba(255,179,0,0.95)');
+      grad.addColorStop(1, 'rgba(255,179,0,0)');
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(gx, gy, 30, 0, Math.PI * 2); g.fill();
+    }
+  }
+}
+// デバッグ用：トミカの代わりに描く消防車
+function drawPlaceholderTomica(g, x, y, w, l) {
+  g.save();
+  g.globalAlpha = 0.85;
+  g.fillStyle = '#e53935';
+  g.beginPath(); rrect(g, x, y, w, l, w * 0.22); g.fill();
+  g.fillStyle = '#bfe9ff';
+  g.beginPath(); rrect(g, x + w * 0.14, y + l * 0.06, w * 0.72, l * 0.1, 8); g.fill();
+  g.fillStyle = '#ff1744';
+  g.fillRect(x + w * 0.3, y + l * 0.19, w * 0.4, l * 0.04);
+  g.fillStyle = '#eceff1';
+  g.fillRect(x + w * 0.3, y + l * 0.27, w * 0.4, l * 0.66);
+  g.strokeStyle = '#b0bec5';
+  g.lineWidth = 3;
+  g.beginPath();
+  for (let k = 0; k < 9; k++) { const yy = y + l * 0.3 + k * l * 0.072; g.moveTo(x + w * 0.3, yy); g.lineTo(x + w * 0.7, yy); }
+  g.stroke();
+  g.restore();
+}
+
+// ============================================================
+// 11. 走行シーンのボタンと矢印
+// ============================================================
+const DriveUI = {
+  init() {
+    this.prompt = el('turnPrompt');
+    this.label = el('turnLabel');
+    this.btn = { '-1': el('btnLeft'), '1': el('btnRight') };
+    for (const b of Object.values(this.btn)) {
+      b.addEventListener('animationend', e => { if (e.target === b) b.classList.remove('nope', 'bounce'); });
+    }
+  },
+  face(side) { return this.btn[side].querySelector('.face'); },
+  reset() {
+    this.prompt.hidden = true;
+    this.prompt.className = 'turn-prompt';
+    for (const s of [-1, 1]) this.face(s).className = 'face';
+  },
+  showPrompt(dir) {
+    this.prompt.className = 'turn-prompt ' + (dir > 0 ? 'right' : 'left');
+    this.label.textContent = dir > 0 ? 'みぎ' : 'ひだり';
+    this.prompt.hidden = false;
+  },
+  glow(dir) { this.face(dir).className = 'face glow'; },
+  strong(dir) { this.face(dir).className = 'face strong'; },
+  armed(dir) {
+    this.face(dir).className = 'face on';
+    this.face(-dir).className = 'face';
+    this.prompt.classList.add('ok');
+  },
+  nope(side) { retrigger(this.btn[side], 'nope'); },
+  bounce(side) { retrigger(this.btn[side], 'bounce'); },
+};
+
+// ============================================================
+// 12. 状態（ステートマシン）
+//     title → select → place → drive → arrive → game → clear
+// ============================================================
+const TRANSITIONS = {
+  title: ['select'],
+  select: ['place'],
+  place: ['drive', 'select'],
+  drive: ['arrive'],
+  arrive: ['game'],
+  game: ['clear'],
+  clear: ['place', 'select'],
+};
+// 段階1だけの仮の流れ（タイトル → 走行 → 到着 → また走行）。段階2で消す
+TRANSITIONS.title.push('drive');
+TRANSITIONS.arrive.push('drive');
+
+const Scenes = {};
+
+Scenes.title = {
+  zone: false,
+  enter() {
+    World.setup(generateCourse());
+    el('btnStart').classList.remove('down');
+  },
+  update() {},
+  draw(g) {
+    World.draw(g);
+    drawTomicaLayer(g, { guide: true });
+  },
+};
+
+Scenes.drive = {
+  zone: true,   // 走行中は中央のタッチを無視する
+  next: 0,
+  winkerT: 0,
+  winkerOn: false,
+  enter({ newCourse = true } = {}) {
+    if (newCourse) World.setup(generateCourse());
+    this.next = 0;
+    this.winkerT = 0;
+    this.winkerOn = false;
+    DriveUI.reset();
+    Sound.engineStart();
+    Sound.sirenStart();
+  },
+  exit() { DriveUI.reset(); },
+  current() { return World.course.nodes[this.next] || null; },
+  update(dt) {
+    World.update(dt);
+    const car = World.car;
+    let X = this.current();
+    if (X) {
+      // 交差点の約3秒前：矢印を出して声で知らせる
+      if (!X.prompted && X.sArcStart - car.s <= World.course.cruise * CONFIG.promptSec) this.prompt(X);
+      // 停止線で待っている
+      if (!X.armed && car.v < 2 && stopS(X) - car.s < 4) {
+        X.waitT += dt;
+        if (!X.reminded && X.waitT >= CONFIG.remindSec) {
+          X.reminded = true;
+          DriveUI.strong(X.dir);
+          Voice.say(X.dir > 0 ? 'みぎだよ！ おしてみてね' : 'ひだりだよ！ おしてみてね');
+        }
+        if (X.waitT >= CONFIG.autoTurnSec) this.arm(X, true);   // 進行が止まらないように自動で曲がる
+      }
+      // 曲がり終わった
+      if (car.s >= X.sArcEnd) {
+        this.next++;
+        DriveUI.reset();
+        X = this.current();
+      }
+    } else if (World.course.path.length - car.s < CONFIG.arriveDist) {
+      App.go('arrive');
+      return;
+    }
+    // ウインカー（ボタンが押されてから曲がり終わるまで）
+    if (X && X.armed) {
+      this.winkerT += dt;
+      const on = Math.floor(this.winkerT / CONFIG.winkerSec) % 2 === 0;
+      if (on !== this.winkerOn) { this.winkerOn = on; Sound.tick(on); }
+    } else {
+      this.winkerT = 0;
+      this.winkerOn = false;
+    }
+  },
+  prompt(X) {
+    X.prompted = true;
+    DriveUI.showPrompt(X.dir);
+    DriveUI.glow(X.dir);
+    Voice.say(X.dir > 0 ? 'みぎに まがるよ！' : 'ひだりに まがるよ！');
+  },
+  arm(X, auto) {
+    X.armed = true;
+    DriveUI.armed(X.dir);
+    if (auto) {
+      Voice.say(X.dir > 0 ? 'みぎに まがりまーす' : 'ひだりに まがりまーす');
+    } else {
+      Sound.good();
+      Voice.say('じょうず！');
+    }
+  },
+  // 矢印ボタンが押された（side：-1 = ひだり、1 = みぎ）
+  press(side) {
+    Sound.tap();
+    const X = this.current();
+    if (!X || !X.prompted || X.armed) { DriveUI.bounce(side); return; }   // まだ早い・もう押した
+    if (side === X.dir) {
+      this.arm(X, false);
+    } else {
+      // 逆を押したら、首を振って正しいほうを光らせる（罰はなし）
+      DriveUI.nope(side);
+      DriveUI.strong(X.dir);
+      Sound.soft();
+      Voice.say('こっちだよ！');
+    }
+  },
+  draw(g) {
+    const X = this.current();
+    World.draw(g, { guide: X && X.prompted ? X : null });
+    drawTomicaLayer(g, { winker: X && X.armed && this.winkerOn ? X.dir : 0 });
+  },
+};
+
+Scenes.arrive = {
+  zone: true,
+  t: 0,
+  stopped: false,
+  enter() {
+    this.t = 0;
+    this.stopped = false;
+    Voice.say('もうすぐ つくよ！');
+  },
+  exit() { el('arriveText').hidden = true; },
+  update(dt) {
+    World.update(dt);
+    if (!this.stopped && World.isStoppedAtGoal()) {
+      this.stopped = true;
+      Sound.sirenStop();
+      Sound.engineStop();
+      Sound.arrive();
+      Voice.say('ついたよ！');
+      el('arriveText').hidden = false;
+    }
+    if (this.stopped) {
+      this.t += dt;
+      if (this.t > 3.5) App.go('drive', { newCourse: true });   // 段階1の仮：新しいコースでもう一度
+    }
+  },
+  draw(g) {
+    World.draw(g);
+    drawTomicaLayer(g);
+  },
+};
+
+const App = {
+  state: null,
+  scene: null,
+  pauseReasons: new Set(),
+  get paused() { return this.pauseReasons.size > 0; },
+  go(next, params = {}) {
+    if (this.state && !(TRANSITIONS[this.state] || []).includes(next)) {
+      console.error(`この順番には進めません: ${this.state} → ${next}`);
+      return;
+    }
+    const scene = Scenes[next];
+    if (!scene) { console.error(`まだ作っていない画面です: ${next}`); return; }
+    if (this.scene && this.scene.exit) this.scene.exit();
+    this.state = next;
+    this.scene = scene;
+    document.querySelectorAll('.scene').forEach(s => { s.hidden = s.dataset.scene !== next; });
+    if (scene.enter) scene.enter(params);
+  },
+  // 今の画面をやり直す（デバッグ用）
+  restart(params = {}) {
+    if (this.scene.exit) this.scene.exit();
+    if (this.scene.enter) this.scene.enter(params);
+  },
+  setPaused(reason, on) {
+    const was = this.paused;
+    if (on) this.pauseReasons.add(reason); else this.pauseReasons.delete(reason);
+    if (this.paused === was) return;
+    if (this.paused) { Sound.suspend(); Voice.stop(); } else { Sound.resume(); }
+  },
+};
+
+function startGame() {
+  if (App.state !== 'title') return;
+  Sound.unlock();
+  Sound.tap();
+  Voice.say('しゅっぱーつ！');
+  App.go('drive', { newCourse: false });
+}
+
+// ============================================================
+// 13. デバッグ表示（?debug）
+// ============================================================
+const Debug = {
+  fps: 0, frames: 0, acc: 0, textT: 0, hitT: 0, error: '',
+  init() {
+    if (!DEBUG) return;
+    el('debugPanel').hidden = false;
+    el('debugPanel').addEventListener('pointerdown', e => {
+      const b = e.target.closest('[data-dbg]');
+      if (!b) return;
+      e.preventDefault();
+      this.action(b.dataset.dbg);
+    });
+    window.addEventListener('error', e => { this.error = e.message; });
+  },
+  action(a) {
+    const steps = {
+      'lane-': ['laneCm', -0.2], 'lane+': ['laneCm', 0.2],
+      'guide-': ['guideScale', -0.05], 'guide+': ['guideScale', 0.05],
+      'speed-': ['speed', -0.2], 'speed+': ['speed', 0.2],
+      'turns-': ['turns', -1], 'turns+': ['turns', 1],
+      'time-': ['driveSec', -5], 'time+': ['driveSec', 5],
+    };
+    if (steps[a]) {
+      const [key, d] = steps[a];
+      Settings.set(key, Math.round((Settings.values[key] + d) * 100) / 100);
+      Layout.update();
+      if (key === 'speed' && World.course) World.course.cruise = Settings.values.speed * CONFIG.lane;
+    } else if (a === 'reset') {
+      Settings.reset();
+      Layout.update();
+    } else if (a === 'new') {
+      if (App.state === 'title' || App.state === 'drive') App.restart({ newCourse: true });
+      else if (App.state === 'arrive') App.go('drive', { newCourse: true });
+    }
+  },
+  zoneHit() { this.hitT = 0.5; },
+  frame(dt) {
+    if (!DEBUG) return;
+    this.frames++;
+    this.acc += dt;
+    if (this.acc >= 0.5) { this.fps = Math.round(this.frames / this.acc); this.frames = 0; this.acc = 0; }
+    this.hitT = Math.max(0, this.hitT - dt);
+    this.textT -= dt;
+    if (this.textT <= 0) { this.textT = 0.25; el('debugText').textContent = this.describe(); }
+  },
+  describe() {
+    const s = Settings.values, c = World.car, course = World.course;
+    const X = App.state === 'drive' ? Scenes.drive.current() : null;
+    return [
+      `v${APP_VERSION}  ${App.state}${App.paused ? '（ていし中）' : ''}`,
+      `FPS ${this.fps}`,
+      `はやさ ${c.v.toFixed(0)} / ${course.cruise.toFixed(0)}`,
+      `きょり ${c.s.toFixed(0)} / ${course.path.length.toFixed(0)}（よそう${course.estSec.toFixed(1)}びょう）`,
+      X ? `つぎ ${X.dir > 0 ? 'みぎ' : 'ひだり'} あと${(X.sArcStart - c.s).toFixed(0)}${X.armed ? ' おした' : ''}` : 'つぎ -',
+      `しゃせん ${s.laneCm.toFixed(1)}cm = ${Layout.lanePx.toFixed(0)}px`,
+      `ガイド ${(s.guideScale * 100).toFixed(0)}% = ${Layout.guideL.toFixed(0)}×${Layout.guideW.toFixed(0)}px`,
+      `まがる${s.turns}かい じかん${s.driveSec}びょう はやさ${s.speed.toFixed(1)}`,
+      this.error ? `エラー: ${this.error}` : '',
+    ].join('\n');
+  },
+  // タッチ無視エリアの枠（有効なときは赤、無効なときは灰色）
+  draw(g) {
+    if (!DEBUG) return;
+    const z = Layout.zone, active = App.scene && App.scene.zone;
+    g.setTransform(Layout.dpr, 0, 0, Layout.dpr, 0, 0);
+    if (this.hitT > 0 && active) {
+      g.fillStyle = `rgba(255,0,0,${(this.hitT * 0.6).toFixed(2)})`;
+      g.fillRect(z.x, z.y, z.w, z.h);
+    }
+    g.strokeStyle = active ? 'rgba(255,40,40,0.95)' : 'rgba(120,120,120,0.8)';
+    g.lineWidth = 3;
+    g.setLineDash([10, 8]);
+    g.strokeRect(z.x, z.y, z.w, z.h);
+    g.setLineDash([]);
+    g.fillStyle = g.strokeStyle;
+    g.font = 'bold 14px sans-serif';
+    g.fillText(active ? 'タッチ無視' : 'タッチ無視（いまは無効）', z.x + 4, z.y - 6);
+  },
+};
+
+// ============================================================
+// 14. メインループと起動
+// ============================================================
+let lastT = performance.now();
+function frame(now) {
+  const dt = clamp((now - lastT) / 1000, 0, 0.05);
+  lastT = now;
+  try {
+    if (!App.paused) App.scene.update(dt);
+    App.scene.draw(ctx);
+    Debug.frame(dt);
+    Debug.draw(ctx);
+  } catch (err) {
+    Debug.error = err.message;
+    console.error(err);
+  }
+  requestAnimationFrame(frame);
+}
+
+function onResize() {
+  Layout.update();
+  // 横向き：タッチ端末だけ「たてにしてね」を出して止める（PCでは止めない）
+  const rotate = Layout.landscape && window.matchMedia('(pointer: coarse)').matches;
+  el('rotate').hidden = !rotate;
+  App.setPaused('rotate', rotate);
+}
+
+function boot() {
+  Settings.load();
+  Layout.update();
+  Input.init();
+  DriveUI.init();
+  Debug.init();
+
+  const startBtn = el('btnStart');
+  startBtn.addEventListener('pointerdown', e => { e.preventDefault(); startBtn.classList.add('down'); });
+  startBtn.addEventListener('pointercancel', () => startBtn.classList.remove('down'));
+  // 音と読み上げを有効にするため、指を離したときに始める
+  startBtn.addEventListener('pointerup', e => { e.preventDefault(); startGame(); });
+  Input.onTap(el('btnLeft'), () => { if (App.state === 'drive') Scenes.drive.press(-1); });
+  Input.onTap(el('btnRight'), () => { if (App.state === 'drive') Scenes.drive.press(1); });
+  // PC ではキーボードでも操作できる
+  window.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (App.state === 'drive') Scenes.drive.press(e.key === 'ArrowLeft' ? -1 : 1);
+    } else if ((e.key === ' ' || e.key === 'Enter') && App.state === 'title') {
+      startGame();
+    }
+  });
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 300));
+  document.addEventListener('visibilitychange', () => App.setPaused('hidden', document.hidden));
+  onResize();
+
+  App.go('title');
+  if (AUTOSTART) App.go('drive', { newCourse: false });
+  requestAnimationFrame(frame);
+}
+
+boot();
+</script>
+</body>
+</html>
