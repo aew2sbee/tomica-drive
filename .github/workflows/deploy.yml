@@ -1,0 +1,36 @@
+name: Deploy to GitHub Pages
+
+# Production: publish main to the root of the gh-pages branch (no build step).
+# PR previews live under pr-preview/ on the same branch and are left untouched.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Collect only the published files (keep this list in sync with preview.yml).
+      - run: |
+          mkdir _site
+          for f in index.html manifest.webmanifest sw.js icons .nojekyll; do
+            if [ -e "$f" ]; then cp -r "$f" _site/; fi
+          done
+      # Skip until the app itself is on main (nothing to publish yet).
+      - if: hashFiles('index.html') != ''
+        uses: JamesIves/github-pages-deploy-action@v4.9.0
+        with:
+          branch: gh-pages
+          folder: _site
+          clean-exclude: pr-preview/
+          force: false
