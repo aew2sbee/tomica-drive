@@ -1,0 +1,35 @@
+name: Deploy to GitHub Pages
+
+# Production: publish main to the root of the gh-pages branch (no build step).
+# PR previews live under pr-preview/ on the same branch and are left untouched.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # A manual run can pick any branch; only main may replace production.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Same files as the previews. .nojekyll only matters at the site root,
+      # so only production gets it.
+      - run: |
+          bash .github/scripts/collect-site.sh
+          cp .nojekyll _site/
+      - uses: JamesIves/github-pages-deploy-action@v4.9.0
+        with:
+          branch: gh-pages
+          folder: _site
+          clean-exclude: pr-preview/
+          force: false
