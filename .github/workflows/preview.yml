@@ -33,7 +33,9 @@ jobs:
           for f in index.html manifest.webmanifest sw.js icons .nojekyll; do
             if [ -e "$f" ]; then cp -r "$f" _site/; fi
           done
-      - uses: rossjrw/pr-preview-action@v1.8.1
+      # Skip until the app itself exists (nothing to publish yet, and gh-pages may not exist).
+      - if: hashFiles('index.html') != ''
+        uses: rossjrw/pr-preview-action@v1.8.1
         with:
           source-dir: _site
           preview-branch: gh-pages
@@ -44,7 +46,7 @@ jobs:
       # It goes right after the "## 確認方法" section, or before the trailing
       # "🤖 Generated" line / at the end when there is no such section.
       - name: Add preview URL to PR description
-        if: github.event.action != 'closed'
+        if: github.event.action != 'closed' && hashFiles('index.html') != ''
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
