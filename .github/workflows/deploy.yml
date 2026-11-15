@@ -20,15 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Collect only the published files (keep this list in sync with preview.yml).
+      # Collect only the published files (same list as preview.yml; add each file there too).
       - run: |
           mkdir _site
-          for f in index.html manifest.webmanifest sw.js icons .nojekyll; do
-            if [ -e "$f" ]; then cp -r "$f" _site/; fi
-          done
-      # Skip until the app itself is on main (nothing to publish yet).
-      - if: hashFiles('index.html') != ''
-        uses: JamesIves/github-pages-deploy-action@v4.9.0
+          cp -r .nojekyll _site/
+      - uses: JamesIves/github-pages-deploy-action@v4.9.0
         with:
           branch: gh-pages
           folder: _site

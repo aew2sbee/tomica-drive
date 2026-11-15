@@ -26,15 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Collect only the published files (keep this list in sync with deploy.yml).
+      # Collect only the published files. Add each file here and in deploy.yml in the PR
+      # that introduces it, so a missing or misspelled file fails the run instead of being skipped.
       - if: github.event.action != 'closed'
         run: |
           mkdir _site
-          for f in index.html manifest.webmanifest sw.js icons .nojekyll; do
-            if [ -e "$f" ]; then cp -r "$f" _site/; fi
-          done
-      # Skip until the app itself exists (nothing to publish yet, and gh-pages may not exist).
-      - if: hashFiles('index.html') != ''
+          cp -r .nojekyll _site/
+      - id: preview
         uses: rossjrw/pr-preview-action@v1.8.1
         with:
           source-dir: _site
@@ -46,11 +44,11 @@ jobs:
       # It goes right after the "## 確認方法" section, or before the trailing
       # "🤖 Generated" line / at the end when there is no such section.
       - name: Add preview URL to PR description
-        if: github.event.action != 'closed' && hashFiles('index.html') != ''
+        if: github.event.action != 'closed'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
-          URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.number }}/
+          URL: ${{ steps.preview.outputs.preview-url }}
         run: |
           marker='<!-- pr-preview-url -->'
           body=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body -q .body)
