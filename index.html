@@ -217,6 +217,8 @@ const APP_VERSION = '0.1.0';
 const PARAMS = new URLSearchParams(location.search);
 const DEBUG = PARAMS.has('debug');          // ?debug：タッチ無視エリアの枠・FPS・状態を表示
 const AUTOSTART = PARAMS.has('autostart');  // ?autostart：タイトルを飛ばして走り出す（PCでの確認用）
+// 公開先のパス（本番は /tomica-drive/、PR プレビューは /tomica-drive/pr-preview/pr-<番号>/）
+const BASE_PATH = new URL('./', location.href).pathname;
 
 const CONFIG = {
   pxPerCm: 52,                       // iPad / iPad Air / iPad Pro では CSS 1cm ≒ 52px
@@ -347,7 +349,8 @@ const SETTING_RANGES = {
   guideScale: [0.6, 1.5], laneCm: [3, 7], speed: [1, 4],
 };
 const Settings = {
-  KEY: 'tomica-drive/settings/v1',
+  // 本番と各 PR プレビューは同じオリジン（github.io）なので、公開先のパスを付けたキーで保存して混ざらないようにする
+  KEY: `tomica-drive:${BASE_PATH}:settings`,
   values: { ...DEFAULT_SETTINGS },
   load() {
     try {
