@@ -26,12 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Collect only the published files. Add each file here and in deploy.yml in the PR
-      # that introduces it, so a missing or misspelled file fails the run instead of being skipped.
       - if: github.event.action != 'closed'
-        run: |
-          mkdir _site
-          cp -r .nojekyll _site/
+        run: bash .github/scripts/collect-site.sh
       - id: preview
         uses: rossjrw/pr-preview-action@v1.8.1
         with:
@@ -53,9 +49,12 @@ jobs:
           marker='<!-- pr-preview-url -->'
           body=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body -q .body)
           if grep -qF "$marker" <<<"$body"; then exit 0; fi
-          printf '%s\n' "$body" | awk -v sec="$marker\n## 開発環境URL\n\n$URL\n" '
+          new=$(printf '%s\n' "$body" | awk -v sec="$marker\n## 開発環境URL\n\n$URL\n" '
             index($0, "## 確認方法") == 1 { in_check = 1; print; next }
             !done && ((in_check && index($0, "## ") == 1) || index($0, "🤖") == 1) { print sec; done = 1 }
             { print }
             END { if (!done) print "\n" sec }
-          ' | gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --body-file -
+          ')
+          # Never write back a body that awk failed to build (it would blank the description).
+          if ! grep -qF "$marker" <<<"$new"; then echo "could not build the new PR body" >&2; exit 1; fi
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --body "$new"

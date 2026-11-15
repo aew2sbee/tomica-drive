@@ -17,13 +17,16 @@ concurrency:
 
 jobs:
   deploy:
+    # A manual run can pick any branch; only main may replace production.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Collect only the published files (same list as preview.yml; add each file there too).
+      # Same files as the previews. .nojekyll only matters at the site root,
+      # so only production gets it.
       - run: |
-          mkdir _site
-          cp -r .nojekyll _site/
+          bash .github/scripts/collect-site.sh
+          cp .nojekyll _site/
       - uses: JamesIves/github-pages-deploy-action@v4.9.0
         with:
           branch: gh-pages
