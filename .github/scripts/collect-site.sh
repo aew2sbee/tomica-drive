@@ -5,3 +5,4 @@
 set -euo pipefail
 rm -rf _site
 mkdir _site
+cp index.html _site/
